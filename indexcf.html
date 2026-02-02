@@ -1,0 +1,72 @@
+export default {
+  async fetch(request, env, ctx) {
+    const reqUrl = new URL(request.url);
+    const target = reqUrl.searchParams.get("url");
+
+    if (!target) {
+      return new Response("Missing ?url=", { status: 400 });
+    }
+
+    let targetUrl;
+    try {
+      targetUrl = new URL(target);
+    } catch {
+      return new Response("Invalid url", { status: 400 });
+    }
+
+    // ✅ OPTIONAL BUT RECOMMENDED: restrict what domains can be proxied
+    // Set env.ALLOWLIST to a comma-separated list like:
+    // "rss.cnn.com,feeds.bbci.co.uk,example.com"
+    const allow = (env.ALLOWLIST || "")
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    if (allow.length > 0 && !allow.includes(targetUrl.hostname)) {
+      return new Response("Domain not allowed", { status: 403 });
+    }
+
+    // Build upstream request
+    const upstreamReq = new Request(targetUrl.toString(), {
+      headers: {
+        "User-Agent": "feed-proxy/1.0 (+github-pages-demo)",
+        "Accept": "application/rss+xml, application/atom+xml, application/xml, application/json, text/xml, text/plain, */*"
+      }
+    });
+
+    // Cache in Cloudflare edge cache for 5 minutes
+    const cacheKey = new Request(targetUrl.toString(), { method: "GET" });
+    const cache = caches.default;
+
+    let resp = await cache.match(cacheKey);
+    if (!resp) {
+      resp = await fetch(upstreamReq);
+      // If upstream errors, pass through
+      if (!resp.ok) {
+        return cors(new Response(await resp.text(), { status: resp.status }));
+      }
+
+      // Clone so we can cache it
+      const respToCache = new Response(resp.body, resp);
+      respToCache.headers.set("Cache-Control", "public, max-age=300");
+      ctx.waitUntil(cache.put(cacheKey, respToCache.clone()));
+      resp = respToCache;
+    }
+
+    return cors(resp);
+  }
+};
+
+function cors(response) {
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("Access-Control-Allow-Methods", "GET,OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type");
+  headers.set("Vary", "Origin");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
