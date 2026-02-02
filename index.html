@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Side-by-Side Feed Compare</title>
+  <style>
+    :root{
+      --bg: #0b0c10;
+      --panel: #111318;
+      --panel2:#151924;
+      --text:#e9eef6;
+      --muted:#aab6c5;
+      --line:#232a36;
+      --chip:#1b2230;
+      --good:#3bd671;
+      --warn:#ffcc00;
+      --bad:#ff5c7a;
+      --accent:#7aa2ff;
+      --shadow: 0 8px 24px rgba(0,0,0,.35);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    * { box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: var(--sans);
+      color:var(--text);
+      background: radial-gradient(1000px 600px at 30% 0%, rgba(122,162,255,.12), transparent 60%),
+                  radial-gradient(900px 700px at 80% 10%, rgba(59,214,113,.10), transparent 55%),
+                  var(--bg);
+    }
+    header{
+      padding: 18px 18px 10px;
+      position: sticky; top:0; z-index:10;
+      backdrop-filter: blur(10px);
+      background: rgba(11,12,16,.75);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar{
+      display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+      max-width: 1280px; margin:0 auto;
+    }
+    .title{
+      display:flex; flex-direction:column; gap:2px;
+      min-width: 270px;
+    }
+    h1{
+      margin:0;
+      font-size: 18px;
+      letter-spacing:.2px;
+    }
+    .subtitle{
+      color:var(--muted);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .controls{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-left:auto;
+    }
+    .btn{
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: none;
+      transition: transform .06s ease, border-color .2s ease;
+      font-size: 13px;
+    }
+    .btn:hover{ border-color: rgba(122,162,255,.45); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{
+      border-color: rgba(122,162,255,.55);
+      background: linear-gradient(180deg, rgba(122,162,255,.22), rgba(122,162,255,.08));
+    }
+    .btn.danger{
+      border-color: rgba(255,92,122,.55);
+      background: linear-gradient(180deg, rgba(255,92,122,.18), rgba(255,92,122,.06));
+    }
+    .pill{
+      display:flex; align-items:center; gap:8px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color:var(--muted);
+    }
+    .pill input{
+      width: 110px;
+      background: transparent;
+      border: 0;
+      color: var(--text);
+      outline: none;
+      font-size: 12px;
+      font-family: var(--mono);
+    }
+    main{
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 14px 18px 60px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 12px;
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+    .col{
+      background: rgba(255,255,255,.02);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow:hidden;
+      box-shadow: var(--shadow);
+    }
+    .colhead{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 10px;
+      padding: 12px 12px 10px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.04), transparent);
+    }
+    .colhead h2{
+      margin:0;
+      font-size: 14px;
+      letter-spacing:.2px;
+    }
+    .colhead .meta{
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end;}
+    .chip{
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      user-select:none;
+    }
+    .chip.active{
+      color: var(--text);
+      border-color: rgba(122,162,255,.55);
+      background: rgba(122,162,255,.12);
+    }
+    .feed{
+      padding: 10px;
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+    }
+    .card{
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border-radius: 14px;
+      padding: 10px 10px 9px;
+    }
+    .card .row{
+      display:flex;
+      gap: 10px;
+      align-items:flex-start;
+    }
+    .avatar{
+      width: 34px; height: 34px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(122,162,255,.25), rgba(59,214,113,.12));
+      border: 1px solid rgba(255,255,255,.06);
+      flex: 0 0 auto;
+      display:flex; align-items:center; justify-content:center;
+      color: rgba(233,238,246,.9);
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .content{ flex: 1 1 auto; min-width: 0; }
+    .who{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 6px 10px;
+      align-items:baseline;
+      margin-bottom: 6px;
+    }
+    .who .name{
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 60%;
+    }
+    .who .handle{
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      white-space:nowrap;
+    }
+    .who .time{
+      color: var(--muted);
+      font-size: 12px;
+      margin-left:auto;
+      white-space:nowrap;
+    }
+    .text{
+      font-size: 13px;
+      line-height: 1.35;
+      color: rgba(233,238,246,.92);
+      word-wrap: break-word;
+    }
+    .tags{
+      display:flex;
+      flex-wrap:wrap;
+      gap: 6px;
+      margin-top: 9px;
+    }
+    .tag{
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.06);
+      padding: 4px 8px;
+      border-radius: 999px;
+    }
+    .foot{
+      display:flex;
+      gap: 8px;
+      margin-top: 10px;
+      align-items:center;
+      justify-content:space-between;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .foot a{
+      color: var(--accent);
+      text-decoration:none;
+      border-bottom: 1px dashed rgba(122,162,255,.55);
+    }
+    .note{
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      border: 1px dashed rgba(255,255,255,.12);
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.02);
+    }
+    dialog{
+      width: min(920px, calc(100% - 24px));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #0f1219;
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+    dialog::backdrop{ background: rgba(0,0,0,.65); }
+    .modal{
+      padding: 14px;
+    }
+    .modal h3{
+      margin: 0 0 6px 0;
+      font-size: 15px;
+    }
+    .modal p{
+      margin: 0 0 12px 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height:1.35;
+    }
+    .formgrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 860px){
+      .formgrid{ grid-template-columns: 1fr; }
+    }
+    label{
+      display:block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    textarea{
+      width: 100%;
+      min-height: 170px;
+      resize: vertical;
+      padding: 10px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      outline:none;
+    }
+    .modal .actions{
+      display:flex;
+      gap:10px;
+      justify-content:flex-end;
+      margin-top: 12px;
+      flex-wrap:wrap;
+    }
+    .statusbar{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-family: var(--mono);
+    }
+    .small{
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .kbd{
+      font-family: var(--mono);
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.04);
+      padding: 1px 6px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <div class="topbar">
+    <div class="title">
+      <h1>Side-by-Side Feed Compare</h1>
+      <div class="subtitle">
+        A simple dashboard to compare two “daily feeds” from different source lists.
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="pill" title="Keyword filter (applies to both columns)">
+        Filter:
+        <input id="filterInput" placeholder="e.g. economy" />
+      </div>
+      <button class="btn" id="btnConfig">Configure sources</button>
+      <button class="btn primary" id="btnRefresh">Refresh</button>
+      <button class="btn danger" id="btnReset">Reset demo</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="note">
+    <b>How to use:</b>
+    <ul style="margin:6px 0 0 18px; padding:0;">
+      <li>By default, this shows <b>demo posts</b> (sample data).</li>
+      <li>Click <b>Configure sources</b> to paste public RSS/Atom/JSON feed URLs for each side.</li>
+      <li>If some sites block browser access (CORS), use a tiny proxy (instructions are in the config modal).</li>
+    </ul>
+    <div class="small" style="margin-top:8px;">
+      Tip: press <span class="kbd">/</span> to jump to the filter box.
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="col" id="colA">
+      <div class="colhead">
+        <div>
+          <h2>Conservative audience feed</h2>
+          <div class="meta" id="metaA">Loading…</div>
+        </div>
+        <div class="chips">
+          <div class="chip active" data-col="A" data-mode="mixed">Mixed</div>
+          <div class="chip" data-col="A" data-mode="links">Links</div>
+          <div class="chip" data-col="A" data-mode="text">Text</div>
+        </div>
+      </div>
+      <div class="feed" id="feedA"></div>
+    </section>
+
+    <section class="col" id="colB">
+      <div class="colhead">
+        <div>
+          <h2>Liberal audience feed</h2>
+          <div class="meta" id="metaB">Loading…</div>
+        </div>
+        <div class="chips">
+          <div class="chip active" data-col="B" data-mode="mixed">Mixed</div>
+          <div class="chip" data-col="B" data-mode="links">Links</div>
+          <div class="chip" data-col="B" data-mode="text">Text</div>
+        </div>
+      </div>
+      <div class="feed" id="feedB"></div>
+    </section>
+  </div>
+</main>
+
+<dialog id="configModal">
+  <div class="modal">
+    <h3>Configure your two source lists</h3>
+    <p>
+      Paste one URL per line for each side. Supported:
+      <b>RSS/Atom feeds</b> (XML) or <b>JSON feeds</b> (array of items).
+      <br><br>
+      <b>CORS warning:</b> many sites block browser fetches. If that happens, you can:
+      <ul style="margin:6px 0 0 18px;">
+        <li>Use a simple proxy (example: a Cloudflare Worker) to fetch feeds server-side</li>
+        <li>Or host this on your own server with a backend that fetches feeds</li>
+      </ul>
+    </p>
+
+    <div class="formgrid">
+      <div>
+        <label for="sourcesA">Conservative feed sources (one per line)</label>
+        <textarea id="sourcesA" spellcheck="false"></textarea>
+        <div class="small">These URLs are not “endorsed”—they’re just whatever you choose to paste.</div>
+      </div>
+      <div>
+        <label for="sourcesB">Liberal feed sources (one per line)</label>
+        <textarea id="sourcesB" spellcheck="false"></textarea>
+        <div class="small">Try to keep the number of sources similar on both sides.</div>
+      </div>
+    </div>
+
+    <div class="statusbar" id="configStatus"></div>
+
+    <div class="actions">
+      <button class="btn" id="btnClose">Cancel</button>
+      <button class="btn primary" id="btnSave">Save & refresh</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+/**
+ * SIDE-BY-SIDE FEED COMPARE (single-file)
+ *
+ * Data model: each "post" is normalized to:
+ * {
+ *   id, side, authorName, authorHandle, text, url, publishedISO,
+ *   tags: [], kind: "link" | "text", sourceTitle
+ * }
+ */
+
+// -------------------- Demo data --------------------
+const DEMO_A = [
+  {
+    authorName: "Local Parent",
+    authorHandle: "@frontporch",
+    text: "Gas prices, groceries, and childcare… feels like everything is up. Anyone seeing relief yet?",
+    url: "",
+    publishedISO: new Date(Date.now() - 1000*60*18).toISOString(),
+    tags: ["cost-of-living","family"],
+    kind: "text",
+    sourceTitle: "Demo"
+  },
+  {
+    authorName: "City Council Watch",
+    authorHandle: "@civicnotes",
+    text: "New zoning proposal meeting tonight. Here’s the agenda + public comment info.",
+    url: "https://example.com/zoning-agenda",
+    publishedISO: new Date(Date.now() - 1000*60*65).toISOString(),
+    tags: ["local","policy"],
+    kind: "link",
+    sourceTitle: "Demo"
+  },
+  {
+    authorName: "Small Biz Owner",
+    authorHandle: "@mainstreet",
+    text: "Payroll is tight this quarter. If you’re hiring, what’s working for you—bonuses, flexible schedules, something else?",
+    url: "",
+    publishedISO: new Date(Date.now() - 1000*60*140).toISOString(),
+    tags: ["economy","jobs"],
+    kind: "text",
+    sourceTitle: "Demo"
+  },
+  {
+    authorName: "Outdoor Update",
+    authorHandle: "@trailreport",
+    text: "Weekend storm setup is interesting. If you’re recreating, keep an eye on alerts and timing.",
+    url: "https://example.com/weather",
+    publishedISO: new Date(Date.now() - 1000*60*260).toISOString(),
+    tags: ["weather","safety"],
+    kind: "link",
+    sourceTitle: "Demo"
+  }
+];
+
+const DEMO_B = [
+  {
+    authorName: "Neighborhood Organizer",
+    authorHandle: "@blockbyblock",
+    text: "Food pantry donations are down. If you can, add shelf-stable items to your next grocery run.",
+    url: "",
+    publishedISO: new Date(Date.now() - 1000*60*22).toISOString(),
+    tags: ["community","mutual-aid"],
+    kind: "text",
+    sourceTitle: "Demo"
+  },
+  {
+    authorName: "Transit Tracker",
+    authorHandle: "@busandrail",
+    text: "Public hearing on service cuts tomorrow. Here’s how to submit comments.",
+    url: "https://example.com/transit-hearing",
+    publishedISO: new Date(Date.now() - 1000*60*90).toISOString(),
+    tags: ["local","transit"],
+    kind: "link",
+    sourceTitle: "Demo"
+  },
+  {
+    authorName: "Teacher Notes",
+    authorHandle: "@classroom",
+    text: "It’s testing season again. Hoping we can keep supporting kids’ mental health through this.",
+    url: "",
+    publishedISO: new Date(Date.now() - 1000*60*170).toISOString(),
+    tags: ["education","health"],
+    kind: "text",
+    sourceTitle: "Demo"
+  },
+  {
+    authorName: "Climate Brief",
+    authorHandle: "@riskready",
+    text: "Heat-risk planning matters even in shoulder seasons. Quick primer on cooling centers + outreach.",
+    url: "https://example.com/heat-risk",
+    publishedISO: new Date(Date.now() - 1000*60*310).toISOString(),
+    tags: ["preparedness","health"],
+    kind: "link",
+    sourceTitle: "Demo"
+  }
+];
+
+// -------------------- State --------------------
+const state = {
+  modeA: "mixed",
+  modeB: "mixed",
+  filter: "",
+  sourcesA: [],
+  sourcesB: [],
+  useDemo: true,
+  cache: { A: [], B: [] }
+};
+
+// -------------------- Helpers --------------------
+const $ = (id) => document.getElementById(id);
+
+function initials(name="") {
+  const parts = name.trim().split(/\s+/).slice(0,2);
+  return parts.map(p => p[0]?.toUpperCase() || "").join("") || "•";
+}
+
+function timeAgo(iso){
+  const t = new Date(iso).getTime();
+  const delta = Date.now() - t;
+  const mins = Math.round(delta/60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.round(mins/60);
+  if (hrs < 48) return `${hrs}h`;
+  const days = Math.round(hrs/24);
+  return `${days}d`;
+}
+
+function normalizeText(s){
+  return (s || "").replace(/\s+/g," ").trim();
+}
+
+function passesFilter(post, filter){
+  const f = normalizeText(filter).toLowerCase();
+  if (!f) return true;
+  const hay = `${post.authorName} ${post.authorHandle} ${post.text} ${(post.tags||[]).join(" ")} ${post.sourceTitle}`.toLowerCase();
+  return hay.includes(f);
+}
+
+function clamp(s, n=280){
+  const t = normalizeText(s);
+  return t.length > n ? t.slice(0, n-1) + "…" : t;
+}
+
+function dedupeByUrlOrText(items){
+  const seen = new Set();
+  const out = [];
+  for (const it of items){
+    const key = (it.url && it.url.trim()) ? `u:${it.url.trim()}` : `t:${it.text.slice(0,80)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
+}
+
+// -------------------- Rendering --------------------
+function renderColumn(side){
+  const mode = side === "A" ? state.modeA : state.modeB;
+  const el = side === "A" ? $("feedA") : $("feedB");
+  const meta = side === "A" ? $("metaA") : $("metaB");
+
+  const all = state.cache[side] || [];
+  const filtered = all
+    .filter(p => passesFilter(p, state.filter))
+    .filter(p => mode === "mixed" ? true : (mode === "links" ? p.kind === "link" : p.kind === "text"))
+    .sort((a,b) => new Date(b.publishedISO) - new Date(a.publishedISO));
+
+  meta.textContent = `${filtered.length} posts • ${state.useDemo ? "demo data" : "your sources"} • updated ${new Date().toLocaleTimeString()}`;
+
+  el.innerHTML = "";
+  for (const post of filtered){
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const whoLine = `
+      <div class="who">
+        <div class="name" title="${escapeHtml(post.authorName)}">${escapeHtml(post.authorName)}</div>
+        <div class="handle">${escapeHtml(post.authorHandle || "")}</div>
+        <div class="time" title="${new Date(post.publishedISO).toLocaleString()}">${timeAgo(post.publishedISO)}</div>
+      </div>
+    `;
+
+    const tags = (post.tags || []).slice(0,6)
+      .map(t => `<span class="tag">#${escapeHtml(t)}</span>`).join("");
+
+    const link = post.url ? `<a href="${escapeAttr(post.url)}" target="_blank" rel="noopener">open</a>` : `<span class="small">no link</span>`;
+    const src = post.sourceTitle ? escapeHtml(post.sourceTitle) : "source";
+
+    card.innerHTML = `
+      <div class="row">
+        <div class="avatar" aria-hidden="true">${initials(post.authorName)}</div>
+        <div class="content">
+          ${whoLine}
+          <div class="text">${escapeHtml(clamp(post.text, 360))}</div>
+          <div class="tags">${tags}</div>
+          <div class="foot">
+            <div class="small">${src}</div>
+            <div>${link}</div>
+          </div>
+        </div>
+      </div>
+    `;
+    el.appendChild(card);
+  }
+
+  if (filtered.length === 0){
+    const empty = document.createElement("div");
+    empty.className = "note";
+    empty.textContent = "No posts match the current filter/mode. Try clearing the filter or refreshing.";
+    el.appendChild(empty);
+  }
+}
+
+// -------------------- Fetch feeds (RSS/Atom/JSON) --------------------
+// This is intentionally simple. Many feeds will fail due to CORS.
+// For production, use a backend/proxy.
+async function fetchOneFeed(url){
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  const text = await res.text();
+
+  // Try JSON first
+  if (ct.includes("application/json") || text.trim().startsWith("{") || text.trim().startsWith("[")) {
+    const data = JSON.parse(text);
+    // Supported JSON shapes:
+    // - array of items
+    // - { items: [...] }
+    const items = Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : []);
+    return items.map(it => ({
+      title: it.title || "",
+      link: it.url || it.link || "",
+      date: it.date_published || it.published || it.pubDate || it.date || "",
+      author: it.author?.name || it.author || it.creator || "",
+      summary: it.summary || it.content_text || it.content || it.description || ""
+    }));
+  }
+
+  // Parse RSS/Atom XML
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, "text/xml");
+
+  // Atom
+  const atomEntries = Array.from(xml.querySelectorAll("entry"));
+  if (atomEntries.length){
+    return atomEntries.map(e => ({
+      title: e.querySelector("title")?.textContent || "",
+      link: e.querySelector("link")?.getAttribute("href") || "",
+      date: e.querySelector("updated")?.textContent || e.querySelector("published")?.textContent || "",
+      author: e.querySelector("author name")?.textContent || "",
+      summary: e.querySelector("summary")?.textContent || e.querySelector("content")?.textContent || ""
+    }));
+  }
+
+  // RSS
+  const rssItems = Array.from(xml.querySelectorAll("item"));
+  return rssItems.map(i => ({
+    title: i.querySelector("title")?.textContent || "",
+    link: i.querySelector("link")?.textContent || "",
+    date: i.querySelector("pubDate")?.textContent || i.querySelector("date")?.textContent || "",
+    author: i.querySelector("author")?.textContent || i.querySelector("dc\\:creator")?.textContent || "",
+    summary: i.querySelector("description")?.textContent || ""
+  }));
+}
+
+function toPosts(side, sourceUrl, sourceTitle, rawItems){
+  const out = [];
+  for (const it of rawItems.slice(0, 20)){
+    const title = normalizeText(it.title);
+    const summary = normalizeText(stripHtml(it.summary || ""));
+    const text = summary ? `${title ? title + " — " : ""}${summary}` : (title || "(untitled)");
+    const url = normalizeText(it.link || "");
+    const author = normalizeText(it.author || "") || (side === "A" ? "Source" : "Source");
+    const date = new Date(it.date || Date.now());
+    out.push({
+      id: `${side}:${sourceUrl}:${url || text.slice(0,50)}:${date.getTime()}`,
+      side,
+      authorName: author || "Source",
+      authorHandle: sourceTitle ? `(${sourceTitle})` : "",
+      text,
+      url,
+      publishedISO: isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString(),
+      tags: guessTags(text),
+      kind: url ? "link" : "text",
+      sourceTitle: sourceTitle || sourceUrl
+    });
+  }
+  return out;
+}
+
+function guessTags(text){
+  const t = text.toLowerCase();
+  const tags = [];
+  const mapping = [
+    ["economy", ["inflation","jobs","market","rates","wages"]],
+    ["health", ["health","hospital","covid","mental"]],
+    ["education", ["school","teacher","students","education"]],
+    ["local", ["city","county","council","meeting","zoning"]],
+    ["weather", ["storm","snow","wind","heat","forecast","tornado","flood"]],
+    ["public-safety", ["crime","police","fire","emergency","evac"]],
+    ["technology", ["ai","tech","software","cyber"]],
+    ["elections", ["election","vote","ballot","primary"]],
+    ["energy", ["energy","power","oil","gas","grid","electric"]]
+  ];
+  for (const [tag, words] of mapping){
+    if (words.some(w => t.includes(w))) tags.push(tag);
+  }
+  return tags.slice(0,4);
+}
+
+function stripHtml(html){
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function escapeHtml(s){
+  return (s || "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
+}
+function escapeAttr(s){ return escapeHtml(s).replaceAll("`","&#96;"); }
+
+// -------------------- Load / save config --------------------
+const LS_KEY = "feed_compare_config_v1";
+function loadConfig(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const cfg = JSON.parse(raw);
+    state.sourcesA = Array.isArray(cfg.sourcesA) ? cfg.sourcesA : [];
+    state.sourcesB = Array.isArray(cfg.sourcesB) ? cfg.sourcesB : [];
+    state.useDemo = !!cfg.useDemo;
+  }catch(e){ /* ignore */ }
+}
+function saveConfig(){
+  localStorage.setItem(LS_KEY, JSON.stringify({
+    sourcesA: state.sourcesA,
+    sourcesB: state.sourcesB,
+    useDemo: state.useDemo
+  }));
+}
+
+// -------------------- Refresh logic --------------------
+async function refreshAll(){
+  $("metaA").textContent = "Loading…";
+  $("metaB").textContent = "Loading…";
+
+  const haveSources = (state.sourcesA.length || state.sourcesB.length);
+  state.useDemo = !haveSources;
+
+  if (state.useDemo){
+    state.cache.A = DEMO_A.map(p => ({...p, side:"A", id:"A:"+Math.random()}));
+    state.cache.B = DEMO_B.map(p => ({...p, side:"B", id:"B:"+Math.random()}));
+    renderColumn("A");
+    renderColumn("B");
+    saveConfig();
+    return;
+  }
+
+  // Fetch in parallel, tolerant of failures per-source.
+  const resultsA = await loadSideFromSources("A", state.sourcesA);
+  const resultsB = await loadSideFromSources("B", state.sourcesB);
+
+  state.cache.A = dedupeByUrlOrText(resultsA);
+  state.cache.B = dedupeByUrlOrText(resultsB);
+
+  renderColumn("A");
+  renderColumn("B");
+  saveConfig();
+}
+
+async function loadSideFromSources(side, sources){
+  const posts = [];
+  const status = [];
+  for (const url of sources){
+    try{
+      const items = await fetchOneFeed(url);
+      const titleGuess = new URL(url).hostname.replace(/^www\./,"");
+      posts.push(...toPosts(side, url, titleGuess, items));
+      status.push(`ok:${titleGuess}`);
+    }catch(e){
+      const titleGuess = safeHost(url);
+      status.push(`fail:${titleGuess}`);
+      // Keep going; failures are expected due to CORS.
+    }
+  }
+  // Optionally sprinkle a couple demo items if everything failed, so column isn't empty.
+  if (!posts.length){
+    const demo = (side==="A" ? DEMO_A : DEMO_B).slice(0,2).map(p => ({
+      ...p, side, sourceTitle: "Demo (fallback)", authorHandle: "@demo"
+    }));
+    posts.push(...demo);
+  }
+  return posts;
+}
+
+function safeHost(url){
+  try { return new URL(url).hostname.replace(/^www\./,""); }
+  catch { return "invalid-url"; }
+}
+
+// -------------------- UI wiring --------------------
+function setMode(side, mode){
+  if (side==="A") state.modeA = mode;
+  else state.modeB = mode;
+
+  document.querySelectorAll(`.chip[data-col="${side}"]`).forEach(ch => {
+    ch.classList.toggle("active", ch.dataset.mode === mode);
+  });
+
+  renderColumn(side);
+}
+
+document.querySelectorAll(".chip").forEach(ch => {
+  ch.addEventListener("click", () => setMode(ch.dataset.col, ch.dataset.mode));
+});
+
+$("filterInput").addEventListener("input", (e) => {
+  state.filter = e.target.value || "";
+  renderColumn("A");
+  renderColumn("B");
+});
+
+$("btnRefresh").addEventListener("click", refreshAll);
+
+$("btnReset").addEventListener("click", () => {
+  state.sourcesA = [];
+  state.sourcesB = [];
+  state.useDemo = true;
+  state.filter = "";
+  $("filterInput").value = "";
+  saveConfig();
+  refreshAll();
+});
+
+const modal = $("configModal");
+
+$("btnConfig").addEventListener("click", () => {
+  $("sourcesA").value = state.sourcesA.join("\n");
+  $("sourcesB").value = state.sourcesB.join("\n");
+  $("configStatus").textContent = "";
+  modal.showModal();
+});
+
+$("btnClose").addEventListener("click", () => modal.close());
+
+$("btnSave").addEventListener("click", async () => {
+  const parseLines = (txt) => txt.split("\n").map(s => s.trim()).filter(Boolean);
+  const a = parseLines($("sourcesA").value);
+  const b = parseLines($("sourcesB").value);
+
+  state.sourcesA = a;
+  state.sourcesB = b;
+
+  // status hint
+  $("configStatus").textContent = `Saved ${a.length} A-sources, ${b.length} B-sources. Refreshing…`;
+  modal.close();
+  await refreshAll();
+});
+
+// Keyboard shortcut: "/" focuses filter
+window.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA"){
+    e.preventDefault();
+    $("filterInput").focus();
+  }
+});
+
+// Init
+loadConfig();
+refreshAll();
+</script>
+</body>
+</html>
